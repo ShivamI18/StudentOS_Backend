@@ -22,8 +22,35 @@ async function generateFocusAdvice(prompt) {
   return data.response;
 }
 
+// async function generateFocusAdvice(prompt) {
+//   const API_KEY = process.env.GEMINI_API_KEY;
+//   const MODEL = "models/gemini-2.5-flash";
+
+//   const response = await fetch(
+//     `https://generativelanguage.googleapis.com/v1beta/${MODEL}:generateContent?key=${API_KEY}`,
+//     {
+//       method: "POST",
+//       headers: { "Content-Type": "application/json" },
+//       body: JSON.stringify({
+//         contents: [{ parts: [{ text: prompt }] }],
+//       }),
+//     }
+//   );
+//   const data = await response.json();
+//   if (data.error) {
+//     throw new Error(data.error.message || "Gemini API error");
+//   }
+//   return (
+//     data?.candidates?.[0]?.content?.parts?.[0]?.text ??
+//     "No response generated."
+//   );
+// }
+
+
+
 app.get("/", (req, res) => {
   res.json({ message: "Welcome to StudentOS Backend" });
+  
 });
 app.post("/api/usage", (req, res) => {
   try {
@@ -67,38 +94,42 @@ If backticks, code fences, or newline characters appear, the response is invalid
 You will receive two inputs:
 A JSON object named studySession containing subject, topics studied, self-rated understanding (1–5), and study time in hr:min:sec format.
 An array of JSON objects named appUsage containing package name, total foreground time in milliseconds, and last used time.
-Your task is to analyze both inputs together and return only a valid JSON object in the exact structure below and in the same order:
+Internally follow this sequence of reasoning, but execute everything in one run and return only the final JSON output.
+Step 1: Parse and normalize time
+Convert study time from hr:min:sec into hours and minutes. Convert app foreground time from milliseconds into hours and minutes. Use these converted values only for reasoning and display.
+Step 2: Analyze focus and productivity
+Classify app usage into productive and non-productive categories. Treat social media and messaging apps such as WhatsApp, Instagram, Facebook, Twitter/X, Snapchat, TikTok, Messenger, and similar platforms as non-productive. Do not name productive apps. Compare total non-productive time with study time.
+Step 3: Generate analysis text
+Write one encouraging paragraph summarizing study behavior and focus. Mention time only in hours and minutes. If non-productive time is high relative to study time, gently acknowledge distraction without judgment. End the paragraph with exactly one sentence: It was a productive day or It was not a very productive day.
+Step 4: Generate notes
+Write a single concise paragraph of beginner-friendly study notes for the given subject and topics, focused strictly on core concepts. Include definitions, key ideas, steps, or simple examples.
+Within this same paragraph, embed exactly 5 short revision questions. These questions must be definition-based or one-sentence answer questions only. Each question must be immediately followed by its one-sentence correct answer. Do not include multiple-choice questions in the notes.
+Step 5: Generate questions
+Create exactly 5 multiple-choice questions based strictly on the notes content and the revision questions included in the notes. These must be new questions.
+Each question must include the full MCQ inside the q value, with exactly four realistic and topic-relevant options included in the same string.
+The a value must contain only the correct option text exactly as it appears in the q value.
+Do not include explanations.
+Final output format
+After completing all steps internally, return only one JSON object in this exact structure and order:
 {
 "analysis": "Analysis goes here",
 "notes": "Notes go here",
 "questions": [
 {
-"q": "MCQ question with all four options included inside this string",
+"q": "MCQ question with four options included inside this string",
 "a": "correct option text"
 }
 ]
 }
-Rules for generating content:
-Analysis
-Write a single encouraging paragraph analyzing the student’s study behavior and focus. Convert study time from hr:min:sec into hours and minutes for reasoning. Convert app usage time from milliseconds into hours and minutes for reasoning. Classify apps into productive and non-productive categories. Treat social media and messaging apps such as WhatsApp, Instagram, Facebook, Twitter/X, Snapchat, TikTok, Messenger, and similar platforms as non-productive. Do not explicitly list productive apps. Focus only on the impact of non-productive app usage and compare that time with the study time. If non-productive app usage is high compared to study time, gently mention distraction in a supportive and non-judgmental way. Always display time using hours and minutes only. End the paragraph with exactly one of the following conclusions: It was a productive day or It was not a very productive day.
-Notes
-Write a single concise paragraph of beginner-friendly study notes for the given subject and topics, focused only on core concepts. Always include definitions, key ideas, steps, or examples relevant to the topic.
-Additionally, include exactly 5 short revision questions inside the notes paragraph. These questions must be definition-based or one-sentence answer questions only. Do not include multiple-choice questions in the notes section. Each embedded question must be immediately followed by its one-sentence correct answer.
-Questions
-Generate exactly 5 new multiple-choice questions based strictly on the notes content and the one-sentence revision questions included in the notes.
-Only MCQs are allowed in this section.
-Each MCQ must include the full question and all four topic-relevant options inside the q string.
-The a field must contain only the correct option text exactly as written in the q string.
-Do not include explanations.
 Global rules
 Return only the JSON object and nothing else.
-Do not include any introduction, explanation, or summary outside the JSON.
+Do not include any introduction or explanation outside the JSON.
 Do not use markdown, bullet points, numbering, emojis, symbols, or special formatting.
 Do not repeat input data.
 Do not ask the user any questions.
 Always return analysis, notes, and questions in that exact order.
 Always express time in hours and minutes only.
-All string values must remain on a single line with no newline characters.
+All string values must remain single-line.
 Input data will be provided after this prompt.
 Input data:
 UserStudyData:
