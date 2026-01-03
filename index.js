@@ -3,54 +3,47 @@ const express = require("express");
 const cors = require("cors");
 const app = express();
 const PORT = process.env.PORT || 3000;
+const fetch = require("node-fetch");
+const https = require("https");
 let usageStats = null;
 app.use(cors());
 app.use(express.json());
 
+const agent = new https.Agent({ family: 4 });
+
 async function generateFocusAdvice(prompt) {
-  const response = await fetch("http://localhost:11434/api/generate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "gemma3:4b",
-      prompt,
-      stream: false,
-    }),
-  });
+  const API_KEY = process.env.GEMINI_API_KEY;
+  const MODEL = "models/gemini-2.5-flash";
+
+  if (!API_KEY) {
+    throw new Error("Missing GEMINI_API_KEY");
+  }
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/${MODEL}:generateContent?key=${API_KEY}`,
+    {
+      method: "POST",
+      agent,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+      }),
+    }
+  );
 
   const data = await response.json();
-  return data.response;
+
+  if (data.error) {
+    throw new Error(data.error.message || "Gemini API error");
+  }
+
+  return (
+    data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "No response generated."
+  );
 }
-
-// async function generateFocusAdvice(prompt) {
-//   const API_KEY = process.env.GEMINI_API_KEY;
-//   const MODEL = "models/gemini-2.5-flash";
-
-//   const response = await fetch(
-//     `https://generativelanguage.googleapis.com/v1beta/${MODEL}:generateContent?key=${API_KEY}`,
-//     {
-//       method: "POST",
-//       headers: { "Content-Type": "application/json" },
-//       body: JSON.stringify({
-//         contents: [{ parts: [{ text: prompt }] }],
-//       }),
-//     }
-//   );
-//   const data = await response.json();
-//   if (data.error) {
-//     throw new Error(data.error.message || "Gemini API error");
-//   }
-//   return (
-//     data?.candidates?.[0]?.content?.parts?.[0]?.text ??
-//     "No response generated."
-//   );
-// }
-
-
 
 app.get("/", (req, res) => {
   res.json({ message: "Welcome to StudentOS Backend" });
-  
 });
 app.post("/api/usage", (req, res) => {
   try {
@@ -96,11 +89,11 @@ A JSON object named studySession containing subject, topics studied, self-rated 
 An array of JSON objects named appUsage containing package name, total foreground time in milliseconds, and last used time.
 Internally follow this sequence of reasoning, but execute everything in one run and return only the final JSON output.
 Step 1: Parse and normalize time
-Convert study time from hr:min:sec into hours and minutes. Convert app foreground time from milliseconds into hours and minutes. Use these converted values only for reasoning and display.
+Convert study time from hr:min:sec into total minutes. Convert app foreground time from milliseconds into total minutes. For display purposes: If time is less than 60 minutes, show as X minutes only. If time is 60 minutes or more, show as X hours Y minutes (omit minutes if 0). Examples: 25 minutes, 45 minutes, 1 hour 15 minutes, 2 hours.
 Step 2: Analyze focus and productivity
 Classify app usage into productive and non-productive categories. Treat social media and messaging apps such as WhatsApp, Instagram, Facebook, Twitter/X, Snapchat, TikTok, Messenger, and similar platforms as non-productive. Do not name productive apps. Compare total non-productive time with study time.
 Step 3: Generate analysis text
-Write one encouraging paragraph summarizing study behavior and focus. Mention time only in hours and minutes. If non-productive time is high relative to study time, gently acknowledge distraction without judgment. End the paragraph with exactly one sentence: It was a productive day or It was not a very productive day.
+Write one encouraging paragraph summarizing study behavior and focus. When mentioning time, use the display format from Step 1: show only minutes if less than 60 minutes, otherwise show hours and minutes. If non-productive time is high relative to study time, gently acknowledge distraction without judgment. End the paragraph with exactly one sentence: It was a productive day or It was not a very productive day.
 Step 4: Generate notes
 Write a single concise paragraph of beginner-friendly study notes for the given subject and topics, focused strictly on core concepts. Include definitions, key ideas, steps, or simple examples.
 Within this same paragraph, embed exactly 5 short revision questions. These questions must be definition-based or one-sentence answer questions only. Each question must be immediately followed by its one-sentence correct answer. Do not include multiple-choice questions in the notes.
@@ -128,7 +121,6 @@ Do not use markdown, bullet points, numbering, emojis, symbols, or special forma
 Do not repeat input data.
 Do not ask the user any questions.
 Always return analysis, notes, and questions in that exact order.
-Always express time in hours and minutes only.
 All string values must remain single-line.
 Input data will be provided after this prompt.
 Input data:
