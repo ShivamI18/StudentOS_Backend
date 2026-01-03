@@ -16,6 +16,6 @@
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "https": "^1.0.0",
-    "node-fetch": "^3.3.2"
+    "node-fetch": "^2.7.0"
   }
 }
